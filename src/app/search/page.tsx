@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { useChat } from '@ai-sdk/react';
 
 interface SearchResult {
   id: string;
@@ -93,11 +94,15 @@ export default function SearchPage() {
   const [query, setQuery] = useState('CRISPR gene editing');
   const [selectedSource, setSelectedSource] = useState<SearchResult['source'] | null>(null);
   const [results] = useState<SearchResult[]>(mockResults);
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
-    {
-      id: '1',
-      role: 'assistant',
-      content: `Based on your search for "CRISPR gene editing", here are the key findings from the literature:
+
+  // AI SDK chat hook with streaming
+  const { messages: chatMessages, input: chatInput, handleInputChange, handleSubmit, isLoading: isTyping } = useChat({
+    api: '/api/chat',
+    initialMessages: [
+      {
+        id: '1',
+        role: 'assistant',
+        content: `Based on your search for "CRISPR gene editing", here are the key findings from the literature:
 
 **Key Themes:**
 - CRISPR-Cas9 shows 78% success rate in ex vivo editing trials
@@ -110,11 +115,9 @@ Recent publications indicate a shift toward personalized medicine approaches, wi
 
 **Suggested Readings:**
 For deeper understanding, consider exploring clinical trial data from Phase III CRISPR studies and recent FDA approvals for gene therapies.`,
-      timestamp: new Date(),
-    },
-  ]);
-  const [chatInput, setChatInput] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
+      },
+    ],
+  });
 
   // Search history state
   const [searchHistory, setSearchHistory] = useState<string[]>([
@@ -247,36 +250,6 @@ For deeper understanding, consider exploring clinical trial data from Phase III 
   const filteredHistory = searchHistory.filter((item) =>
     item.toLowerCase().includes(query.toLowerCase())
   );
-
-  const handleSendMessage = (e?: React.FormEvent | React.KeyboardEvent) => {
-    e?.preventDefault();
-    if (!chatInput.trim()) return;
-
-    // Add user message
-    const userMessage: ChatMessage = {
-      id: Date.now().toString(),
-      role: 'user',
-      content: chatInput,
-      timestamp: new Date(),
-    };
-    setChatMessages((prev) => [...prev, userMessage]);
-    setChatInput('');
-    setIsTyping(true);
-
-    // Simulate AI response
-    setTimeout(() => {
-      const aiMessage: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: `Thank you for your question. Based on the ${filteredResults.length} papers found, here's what I can tell you:
-
-The research highlights several important aspects of this topic. Would you like me to elaborate on any specific finding or explore related research areas?`,
-        timestamp: new Date(),
-      };
-      setChatMessages((prev) => [...prev, aiMessage]);
-      setIsTyping(false);
-    }, 1500);
-  };
 
   return (
     <div className="h-screen flex flex-col bg-slate-50 dark:bg-slate-950 overflow-hidden">
@@ -584,10 +557,15 @@ The research highlights several important aspects of this topic. Would you like 
                           : 'text-slate-400 dark:text-slate-500'
                       }`}
                     >
-                      {message.timestamp.toLocaleTimeString('en-US', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
+                      {'timestamp' in message && message.timestamp
+                        ? (message.timestamp as Date).toLocaleTimeString('en-US', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })
+                        : new Date().toLocaleTimeString('en-US', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
                     </div>
                   </div>
                   {message.role === 'user' && (
@@ -618,17 +596,18 @@ The research highlights several important aspects of this topic. Would you like 
 
             {/* Chat Input */}
             <div className="border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-6 py-3">
-              <form onSubmit={handleSendMessage} className="flex gap-2 items-end">
+              <form onSubmit={handleSubmit} className="flex gap-2 items-end">
                 <textarea
                   ref={chatTextareaRef}
                   placeholder="Ask about the research findings..."
                   className="flex-1 resize-none rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-950 dark:focus:ring-slate-300 min-h-[40px] max-h-[200px] overflow-y-auto"
                   value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
+                  onChange={handleInputChange}
                   rows={1}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
-                      handleSendMessage(e);
+                      e.preventDefault();
+                      handleSubmit(e);
                     }
                   }}
                 />
@@ -636,7 +615,7 @@ The research highlights several important aspects of this topic. Would you like 
                   type="submit"
                   size="icon"
                   className="h-10 w-10 flex-shrink-0"
-                  disabled={!chatInput.trim() || isTyping}
+                  disabled={!(chatInput || '').trim() || isTyping}
                 >
                   <Send className="h-4 w-4" />
                 </Button>

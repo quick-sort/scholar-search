@@ -79,6 +79,92 @@ The application uses Next.js App Router with file-based routing in `src/app/`:
 - Markdown rendering for formatted responses (supporting GitHub Flavored Markdown)
 - Typing indicators and auto-scroll
 - Vercel AI SDK integration for streaming responses
+- Multi-agent system with specialized research agents
+
+## AI Agent System
+
+The application uses the Vercel AI SDK to implement a multi-agent research assistant system.
+
+### Architecture
+
+**Agent Types** (`src/lib/agents/research-agent.ts`):
+- **Search Agent**: Specializes in finding relevant papers across databases
+- **Analysis Agent**: Analyzes and synthesizes research findings
+- **Citation Agent**: Manages citations and formatting
+- **Orchestrator Agent**: Coordinates multi-agent responses
+
+**Research Tools** (`src/lib/agents/tools.ts`):
+- `searchPapers`: Search academic databases
+- `summarizePapers`: Generate comprehensive summaries
+- `extractCitations`: Format citations in multiple styles
+- `comparePapers`: Compare methodologies and findings
+- `findRelatedPapers`: Discover related research
+
+### Environment Setup
+
+Create a `.env.local` file based on `.env.example`:
+
+```bash
+OPENAI_API_KEY=your-key-here
+# Optional: Custom endpoint
+# OPENAI_BASE_URL=https://your-endpoint.com/v1
+```
+
+### API Route
+
+The chat API is located at `src/app/api/chat/route.ts`:
+- Handles streaming chat responses
+- Routes requests to appropriate agents
+- Executes tools with Zod validation
+- Uses Edge Runtime for optimal performance
+
+### Frontend Integration
+
+The search page (`src/app/search/page.tsx`) uses:
+- `useChat` hook from `ai/react` for streaming
+- Automatic agent routing based on user intent
+- Real-time tool execution visualization
+- Markdown rendering for formatted responses
+
+### Extending the Agent System
+
+To add a new agent:
+
+1. Define agent config in `src/lib/agents/research-agent.ts`:
+```typescript
+export const myAgentConfig: AgentConfig = {
+  name: 'My Agent',
+  role: 'my-role',
+  systemPrompt: '...',
+  model: CHAT_MODEL,
+  temperature: 0.4,
+};
+```
+
+2. Add to agents registry:
+```typescript
+export const agents = {
+  // ...existing agents
+  myAgent: myAgentConfig,
+};
+```
+
+3. Update routing logic in `routeToAgent()` if needed
+
+To add a new tool:
+
+1. Define tool in `src/lib/agents/tools.ts`:
+```typescript
+export const myTool = {
+  description: '...',
+  parameters: z.object({...}),
+  execute: async (params) => {...},
+};
+```
+
+2. Add to `researchTools` export and `getToolDefinitions()`
+
+3. Update API route to include the new tool
 
 **Data Models** (from `src/app/search/page.tsx`):
 ```typescript
